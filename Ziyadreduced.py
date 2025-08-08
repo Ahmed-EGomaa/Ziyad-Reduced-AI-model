@@ -432,7 +432,7 @@ def main():
         layout="wide"
     )
     
-    st.title("ToxAgents: Simplified Toxicity Prediction model")
+    st.title("ToxAgents: Simplified Toxicity Prediction model (YU Biotech Lab)")
     st.markdown("""
     This application predicts the toxicity of chemical compounds using molecular descriptors and machine learning.
     **This version works with minimal dependencies and provides fallback implementations.**
