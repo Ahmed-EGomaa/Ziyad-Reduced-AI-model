@@ -1,18 +1,31 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import tempfile
 import os
 import platform
 from io import BytesIO
 import base64
 
+# Try to import matplotlib
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+
 # Core ML libraries
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+try:
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    st.error("Scikit-learn is not available. Please install scikit-learn to use this application.")
 
 # RDKit for molecular descriptors and visualization
 try:
@@ -24,7 +37,6 @@ try:
     RDKIT_AVAILABLE = True
 except ImportError:
     RDKIT_AVAILABLE = False
-    st.error("RDKit is not available. Please install RDKit to use this application.")
 
 # SHAP for feature importance
 try:
@@ -32,7 +44,6 @@ try:
     SHAP_AVAILABLE = True
 except ImportError:
     SHAP_AVAILABLE = False
-    st.warning("SHAP is not available. Feature importance visualization will be limited.")
 
 class MolecularDescriptorExtractor:
     """Extract molecular descriptors from SMILES strings using RDKit."""
@@ -174,7 +185,7 @@ class MolecularVisualizer:
     
     def create_shap_plot(self, model, X_sample, feature_names):
         """Create SHAP summary plot for top 3 features."""
-        if not SHAP_AVAILABLE:
+        if not SHAP_AVAILABLE or not MATPLOTLIB_AVAILABLE:
             return None
             
         try:
@@ -220,6 +231,23 @@ class MolecularVisualizer:
         except Exception as e:
             st.error(f"Error creating SHAP plot: {e}")
             return None
+    
+    def create_simple_importance_chart(self, model, feature_names):
+        """Create simple feature importance chart without matplotlib."""
+        try:
+            # Get feature importance from Random Forest
+            importances = model.feature_importances_
+            
+            # Get top 3 features
+            top_indices = np.argsort(importances)[-3:][::-1]
+            top_features = [feature_names[i] for i in top_indices]
+            top_values = importances[top_indices]
+            
+            return top_features, top_values
+            
+        except Exception as e:
+            st.error(f"Error getting feature importance: {e}")
+            return None, None
 
 def create_sample_data():
     """Create sample dataset for demonstration."""
@@ -251,10 +279,39 @@ def main():
     Enter a SMILES string to get toxicity prediction, feature importance analysis, and molecular visualization.
     """)
     
-    # Check if RDKit is available
+    # Check dependencies and show status
+    st.sidebar.header("System Status")
+    dependencies = {
+        "🧬 RDKit": RDKIT_AVAILABLE,
+        "🤖 Scikit-learn": SKLEARN_AVAILABLE,
+        "📊 Matplotlib": MATPLOTLIB_AVAILABLE,
+        "🔍 SHAP": SHAP_AVAILABLE
+    }
+    
+    for lib, available in dependencies.items():
+        if available:
+            st.sidebar.success(f"{lib} ✅")
+        else:
+            st.sidebar.error(f"{lib} ❌")
+    
+    # Check critical dependencies
     if not RDKIT_AVAILABLE:
-        st.error("RDKit is required for this application. Please install RDKit to continue.")
+        st.error("⚠️ RDKit is required for molecular descriptor computation. Please install RDKit.")
+        st.code("pip install rdkit", language="bash")
         st.stop()
+    
+    if not SKLEARN_AVAILABLE:
+        st.error("⚠️ Scikit-learn is required for machine learning. Please install scikit-learn.")
+        st.code("pip install scikit-learn", language="bash")
+        st.stop()
+    
+    # Show warnings for optional dependencies
+    if not MATPLOTLIB_AVAILABLE and not SHAP_AVAILABLE:
+        st.warning("⚠️ Matplotlib and SHAP are not available. Feature importance will be shown as text only.")
+    elif not MATPLOTLIB_AVAILABLE:
+        st.warning("⚠️ Matplotlib is not available. Charts will be shown as text only.")
+    elif not SHAP_AVAILABLE:
+        st.warning("⚠️ SHAP is not available. Basic feature importance will be used instead.")
     
     # Initialize components
     if 'extractor' not in st.session_state:
@@ -337,8 +394,8 @@ def main():
                         desc_df.columns = ['Value']
                         st.dataframe(desc_df)
                         
-                        # SHAP plot
-                        if SHAP_AVAILABLE and hasattr(st.session_state, 'X_test'):
+                        # SHAP plot or feature importance
+                        if SHAP_AVAILABLE and MATPLOTLIB_AVAILABLE and hasattr(st.session_state, 'X_test'):
                             st.subheader("Feature Importance (SHAP)")
                             shap_plot = st.session_state.visualizer.create_shap_plot(
                                 st.session_state.predictor.model,
@@ -347,6 +404,26 @@ def main():
                             )
                             if shap_plot:
                                 st.image(shap_plot, use_column_width=True)
+                        else:
+                            # Fallback: Simple feature importance
+                            st.subheader("Feature Importance")
+                            if st.session_state.predictor.is_trained:
+                                top_features, top_values = st.session_state.visualizer.create_simple_importance_chart(
+                                    st.session_state.predictor.model,
+                                    st.session_state.predictor.feature_names
+                                )
+                                
+                                if top_features is not None:
+                                    importance_df = pd.DataFrame({
+                                        'Feature': top_features,
+                                        'Importance': top_values
+                                    })
+                                    
+                                    # Display as bar chart using Streamlit
+                                    st.bar_chart(importance_df.set_index('Feature'))
+                                    
+                                    # Also display as table
+                                    st.dataframe(importance_df)
                         
                     except Exception as e:
                         st.error(f"Prediction failed: {e}")
