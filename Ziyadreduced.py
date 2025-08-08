@@ -427,12 +427,12 @@ def create_sample_data():
 
 def main():
     st.set_page_config(
-        page_title="ToxAgents: Simplified Toxicity Prediction",
+        page_title="ToxAgents: Simplified Toxicity Prediction YU Biotech Lab",
         page_icon="🧪",
         layout="wide"
     )
     
-    st.title("🧪 ToxAgents: Simplified Toxicity Prediction")
+    st.title("ToxAgents: Simplified Toxicity Prediction model")
     st.markdown("""
     This application predicts the toxicity of chemical compounds using molecular descriptors and machine learning.
     **This version works with minimal dependencies and provides fallback implementations.**
@@ -455,9 +455,9 @@ def main():
     
     # Show what's being used
     if not RDKIT_AVAILABLE:
-        st.info("💡 Using basic SMILES parsing (install RDKit for accurate molecular descriptors)")
+        st.info("Using basic SMILES parsing (install RDKit for accurate molecular descriptors)")
     if not SKLEARN_AVAILABLE:
-        st.info("💡 Using simple Random Forest implementation (install scikit-learn for full features)")
+        st.info("Using simple Random Forest implementation (install scikit-learn for full features)")
     
     # Initialize components
     if 'extractor' not in st.session_state:
